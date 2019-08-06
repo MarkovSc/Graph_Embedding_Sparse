@@ -10,7 +10,7 @@ from sklearn.manifold import TSNE
 
 
 def evaluate_embeddings(embeddings):
-    X, Y = read_node_label('wiki/wiki_labels.txt')
+    X, Y = read_node_label('../data/wiki/wiki_labels.txt')
     tr_frac = 0.8
     print("Training classifier using {:.2f}% nodes...".format(
         tr_frac * 100))
@@ -19,7 +19,7 @@ def evaluate_embeddings(embeddings):
 
 
 def plot_embeddings(embeddings,):
-    X, Y = read_node_label('wiki/wiki_labels.txt')
+    X, Y = read_node_label('../data/wiki/wiki_labels.txt')
 
     emb_list = []
     for k in X:
@@ -42,7 +42,7 @@ def plot_embeddings(embeddings,):
 
 
 if __name__ == "__main__":
-    G = nx.read_edgelist('wiki/Wiki_edgelist.txt',
+    G = nx.read_edgelist('../data/wiki/Wiki_edgelist.txt',
                          create_using=nx.DiGraph(), nodetype=None, data=[('weight', int)])
 
     model = SDNE(G, hidden_size=[256, 128],)
