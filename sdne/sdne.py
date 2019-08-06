@@ -18,7 +18,6 @@ Reference:
 
 """
 import time
-
 import numpy as np
 import tensorflow as tf
 from tensorflow.python.keras import backend as K
@@ -28,7 +27,7 @@ from tensorflow.python.keras.models import Model
 from tensorflow.python.keras.regularizers import l1_l2
 from scipy.sparse import *
 from networkx import nx
-
+from tqdm import tqdm
 
 def l_2nd(beta):
     def loss_2nd(y_true, y_pred):
@@ -78,7 +77,6 @@ class SDNE(object):
         self.graph = graph
         self.idx2node = list(self.graph.nodes())
         self.node2idx = dict([(self.idx2node[index], index) for index in range(len(self.idx2node))])
- 
         self.node_size = self.graph.number_of_nodes()
         self.hidden_size = hidden_size
         self.alpha = alpha
@@ -97,7 +95,6 @@ class SDNE(object):
         self.model, self.emb_model = create_model(self.node_size, hidden_size=self.hidden_size, l1=self.nu1,
                                                   l2=self.nu2)
         self.model.compile(opt, [l_2nd(self.beta), l_1st(self.alpha)])
-        self.get_embeddings()
 
     def train(self, batch_size=1024, epochs=1, initial_epoch=0, verbose=1):
         if batch_size >= self.node_size:
@@ -105,8 +102,9 @@ class SDNE(object):
                 print('batch_size({0}) > node_size({1}),set batch_size = {1}'.format(
                     batch_size, self.node_size))
                 batch_size = self.node_size
-            return self.model.fit([self.A, self.L], [self.A, self.L], batch_size=batch_size, epochs=epochs, initial_epoch=initial_epoch, verbose=verbose, shuffle=False,)
+            return self.model.fit([self.A.toarray(), self.L.toarray()], [self.A.toarray(), self.L.toarray()], batch_size=batch_size, epochs=epochs, initial_epoch=initial_epoch, verbose=verbose, shuffle=False,)
         else:
+            print("use the batch model to run")
             steps_per_epoch = (self.node_size - 1) // batch_size + 1
             hist = History()
             hist.on_train_begin()
@@ -114,11 +112,11 @@ class SDNE(object):
             for epoch in range(initial_epoch, epochs):
                 start_time = time.time()
                 losses = np.zeros(3)
-                for i in range(steps_per_epoch):
+                for i in tqdm(range(steps_per_epoch)):
                     index = np.arange(
                         i * batch_size, min((i + 1) * batch_size, self.node_size))
-                    A_train = self.A[index, :]
-                    L_mat_train = self.L[index][:, index]
+                    A_train = self.A[index, :].toarray()
+                    L_mat_train = self.L[index][:, index].toarray()
                     inp = [A_train, L_mat_train]
                     batch_losses = self.model.train_on_batch(inp, inp)
                     losses += batch_losses
@@ -148,15 +146,11 @@ class SDNE(object):
         return self._embeddings
 
     def _create_A_L(self, graph, node2idx):
-        node_size = graph.number_of_nodes()
-            
+        from pympler.asizeof import asizeof
+        from scipy.sparse import csgraph
         A = nx.to_scipy_sparse_matrix(graph)
         rows, cols = A.nonzero()
         A_ = A.copy()
         A_[cols, rows] = A[rows, cols]
-        A_ = A_.toarray()
-        D = np.zeros_like(A_)
-        for i in range(node_size):
-            D[i][i] = np.sum(A_[i])
-        L = D - A_
-        return A.toarray(), L
+        L = csgraph.laplacian(A_, normed=False).tocsr()
+        return A, L
