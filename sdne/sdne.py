@@ -136,12 +136,24 @@ class SDNE(object):
     def evaluate(self, ):
         return self.model.evaluate(x=self.inputs, y=self.inputs, batch_size=self.node_size)
 
-    def get_embeddings(self):
+    def get_embeddings(self, batch_size = 1024):
         self._embeddings = {}
-        embeddings = self.emb_model.predict(self.A, batch_size=self.node_size)
         look_back = self.idx2node
-        for i, embedding in enumerate(embeddings):
-            self._embeddings[look_back[i]] = embedding
+        if batch_size >= self.node_size:
+            embeddings = self.emb_model.predict(self.A.toarray(), batch_size=self.node_size)
+            for i, embedding in enumerate(embeddings):
+                self._embeddings[look_back[i]] = embedding
+        else:
+            print("use the batch model to run")
+            steps_per_epoch = (self.node_size - 1) // batch_size + 1
+            for i in tqdm(range(steps_per_epoch)):
+                index = np.arange(
+                        i * batch_size, min((i + 1) * batch_size, self.node_size))
+                A_train = self.A[index, :].toarray()
+                embeddings = self.emb_model.predict(A_train, batch_size=self.node_size)
+
+                for j, embedding in enumerate(embeddings):
+                    self._embeddings[look_back[j + i * batch_size]] = embedding
 
         return self._embeddings
 
